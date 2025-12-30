@@ -8,6 +8,7 @@
 - [Фабрики (factory)](#фабрики-factory)
   - [Пример 1. GUI-элементы](#пример-1-gui-элементы)
   - [Пример 2. Сериализация / загрузка объектов](#пример-2-сериализация--загрузка-объектов)
+- [Pimpl (Pointer to IMPLementation)](#pimpl-pointer-to-implementation)
 
 # RAII
 **Resource Acquisition Is Initialization** это паттерн управления ресурсами через объекты.
@@ -373,3 +374,54 @@ while (in >> type) {
     world.push_back(obj);
 }
 ```
+
+# Pimpl (Pointer to IMPLementation)
+
+Идиома проектирования, при которой публичный интерфейс класса отделяется от его реальной реализации через указатель на скрытый внутренний тип.
+
+В заголовке остаётся только интерфейс; все детали реализации уезжают в `.cpp`; пользователи класса не видят зависимостей, `#include` и внутренних структур.
+
+```
+// foo.h
+#pragma once
+#include <memory>
+
+class Foo {
+public:
+    Foo();
+    ~Foo();              // важно: объявлена, но не inline
+    void bar() const;
+
+private:
+    struct Impl;         // неполное объявление
+    std::unique_ptr<Impl> impl;
+};
+```
+```
+// foo.cpp
+#include "foo.h"
+#include <vector>
+#include <iostream>
+
+struct Foo::Impl {
+    std::vector<int> data;
+
+    void bar() const {
+        std::cout << data.size() << "\n";
+    }
+};
+
+Foo::Foo() : impl(std::make_unique<Impl>()) {}
+Foo::~Foo() = default;
+
+void Foo::bar() const {
+    impl->bar();
+}
+```
+
+Что здесь важно:
+- `struct Impl` не виден пользователю;
+- любые `#include <vector>`, `<iostream>` не протекают в хедер;
+- изменение реализации не требует перекомпиляции всех зависимых файлов.
+- ускорение компиляции. Меняется `foo.cpp` → перекомпилируется только он, а не весь проект, который включает `foo.h`.
+- Стабильный ABI (важно для библиотек). Размер класса в хедере не меняется → можно обновлять библиотеку без пересборки клиентов.
