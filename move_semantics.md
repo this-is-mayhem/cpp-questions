@@ -5,8 +5,10 @@
   - [Ссылки на lvalue и rvalue](#ссылки-на-lvalue-и-rvalue)
 - [`std::move`](#stdmove)
 - [perfect forwarding](#perfect-forwarding)
+  - [Когда `std::forward` НЕ нужен](#когда-stdforward-не-нужен)
 - [`push_back` vs `emplace_back`](#push_back-vs-emplace_back)
-  - [Почему компилятор "не догадывается", что push\_back(5) = emplace\_back(5)?](#почему-компилятор-не-догадывается-что-push_back5--emplace_back5)
+  - [Когда использовать `push_back`](#когда-использовать-push_back)
+  - [Когда использовать `emplace_back`](#когда-использовать-emplace_back)
 - [`const T&`](#const-t)
 
 # move семантика
@@ -93,6 +95,42 @@ wrapper(s);                 // lvalue
 wrapper(std::string("hi")); // rvalue
 ```
 
+## Когда `std::forward` НЕ нужен
+
+***Аргумент принимается по значению***
+```
+template<typename T>
+void f(T x)
+{
+    foo(x);
+}
+```
+
+`x` уже копия. Информация о `rvalue/lvalue` потеряна.
+
+
+***Аргумент принимается по const&***
+```
+template<typename T>
+void f(const T& x)
+{
+    foo(x);
+}
+```
+`x` всегда lvalue.
+
+
+***Аргумент не передаётся дальше***
+```
+template<typename T>
+void print(T&& x)
+{
+    std::cout << x;
+}
+```
+
+
+
 
 # `push_back` vs `emplace_back`
 ```
@@ -126,17 +164,41 @@ T& emplace_back(Args&&... args) {
 }
 ```
 
-## Почему компилятор "не догадывается", что push_back(5) = emplace_back(5)?
+## Когда использовать `push_back`
 
-Потому что у них разные контракты интерфейса:
-- `push_back` принимает готовый объект (`const T&` или `T&&`).
-Значит, объект обязан существовать перед вызовом. Поэтому сначала создаётся временный.
-- `emplace_back` принимает аргументы для конструктора (`Args&&...`).
-Здесь у тебя нет ещё объекта, а есть только параметры для него. Контейнер сам решает, где и как вызвать конструктор.
+Если объект уже существует.
 
-То есть разница принципиальная:
-- `push_back` работает с объектами,
-- `emplace_back` работает с аргументами для конструирования.
+```
+std::vector<std::string> v;
+
+std::string s = "hello";
+v.push_back(s);
+```
+
+или
+
+```
+v.push_back(std::string("hello"));
+```
+
+Сигнатура примерно такая:
+
+void push_back(const T& value);
+void push_back(T&& value);
+
+## Когда использовать `emplace_back`
+
+Когда нужно создать объект прямо внутри контейнера.
+
+```
+std::vector<std::string> v;
+
+v.emplace_back("hello");
+```
+
+Контейнер получает аргументы конструктора и вызывает конструктор прямо в памяти контейнера.
+
+
 
 # `const T&`
 ```
